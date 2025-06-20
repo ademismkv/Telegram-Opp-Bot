@@ -3,4 +3,5 @@ telethon
 sentence-transformers
 faiss-cpu
 python-dotenv
-requests 
+requests
+psycopg2-binary 
