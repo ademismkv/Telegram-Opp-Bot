@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# Data and model cache
+*.db
+*.sqlite3
+*.h5
+*.hdf5
+*.faiss
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Ignore data and index files (optional, comment out if you want to keep them in git)
+# data/
+# faiss_index/ 
