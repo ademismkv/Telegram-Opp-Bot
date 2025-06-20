@@ -1,18 +1,15 @@
 import os
 import requests
 import time
-import psycopg2
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
-from sentence_transformers import SentenceTransformer
-import numpy as np
-import faiss
 from vector_store import VectorStore
 
 load_dotenv()
 CHAT_BOT_TOKEN = os.getenv("CHAT_BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
+INDEX_PATH = "./faiss_index/index.faiss"
+MESSAGES_PATH = "./data/messages.json"
 VECTOR_DIM = int(os.getenv("VECTOR_DIMENSION", 384))
 MAX_SEARCH_RESULTS = int(os.getenv("MAX_SEARCH_RESULTS", 20))
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT") or (
@@ -24,40 +21,25 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT") or (
     "- Use bullet points for lists.\n"
     "- Use markdown formatting for clarity.\n"
     "- Separate each Q&A pair with a blank line.\n"
-    "- If the context is insufficient, respond politely and ask for clarification.\n"
-    "- Do NOT include references to specific people, testimonials, or consultancy companies unless the user explicitly asks for them.\n"
-    "- Avoid promotional or marketing language."
+    "- If the context is insufficient, respond politely and ask for clarification."
 )
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL")
 
+# allow_rebuild=False for chat bot
+vector_store = VectorStore(INDEX_PATH, MESSAGES_PATH, VECTOR_DIM, allow_rebuild=False)
+
 MAX_CONTEXT_CHARS = 6000  # Limit context to avoid 413 errors
 
-class DBVectorStore:
-    def __init__(self, db_url, dim):
-        self.db_url = db_url
-        self.dim = dim
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.index = faiss.IndexFlatL2(dim)
-        self.messages = []
-
-    def load_from_db(self):
-        conn = psycopg2.connect(self.db_url)
-        cur = conn.cursor()
-        cur.execute("SELECT message_text, embedding FROM telegram_messages")
-        rows = cur.fetchall()
-        self.messages = [row[0] for row in rows]
-        embeddings = np.array([row[1] for row in rows], dtype=np.float32)
-        if len(embeddings) > 0:
-            self.index = faiss.IndexFlatL2(self.dim)
-            self.index.add(embeddings)
-        cur.close()
-        conn.close()
-
-    def search(self, query, k=20):
-        emb = self.model.encode([query])
-        D, I = self.index.search(np.array(emb, dtype=np.float32), k)
-        return [self.messages[i] for i in I[0] if i < len(self.messages)]
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    welcome = (
+        "👋 Welcome to the Opportunity Assistant!\n\n"
+        "This bot is currently in development. Sometimes responses may take a while, and you may encounter occasional errors.\n\n"
+        "Ask me about scholarships, competitions, internships, or academic programs.\n\n"
+        "Note: Sessions last only 1 day.\n\n"
+        "Thank you for your patience and feedback!"
+    )
+    await update.message.reply_text(welcome)
 
 def query_groq_llama(context, question, retries=3, delay=2):
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -91,19 +73,6 @@ def build_limited_context(messages, max_chars):
         context.append(msg)
         total += len(msg)
     return "\n---\n".join(context)
-
-vector_store = DBVectorStore(DATABASE_URL, VECTOR_DIM)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    vector_store.load_from_db()
-    welcome = (
-        "👋 Welcome to the Opportunity Assistant!\n\n"
-        "This bot is currently in development. Sometimes responses may take a while, and you may encounter occasional errors.\n\n"
-        "Ask me about scholarships, competitions, internships, or academic programs.\n\n"
-        "Note: Sessions last only 1 day.\n\n"
-        "Thank you for your patience and feedback!"
-    )
-    await update.message.reply_text(welcome)
 
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = update.message.text
