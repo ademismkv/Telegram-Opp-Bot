@@ -81,4 +81,4 @@ python bot_chat.py
 - Uses [python-telegram-bot](https://core.telegram.org/bots/api) for async bot handling.
 - All secrets/config are loaded from `.env`.
 - Make sure `faiss_index/` and `data/` directories exist.
-- You can run both bots in separate processes or deploy as separate Railway services. 
+- You can run both bots in separate processes or deploy as separate Railway services. # Telegram-Opp-Bot
