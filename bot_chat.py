@@ -21,7 +21,9 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT") or (
     "- Use bullet points for lists.\n"
     "- Use markdown formatting for clarity.\n"
     "- Separate each Q&A pair with a blank line.\n"
-    "- If the context is insufficient, respond politely and ask for clarification."
+    "- If the context is insufficient, respond politely and ask for clarification.\n"
+    "- Do NOT include references to specific people, testimonials, or consultancy companies unless the user explicitly asks for them.\n"
+    "- Avoid promotional or marketing language."
 )
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL")
@@ -30,6 +32,14 @@ GROQ_MODEL = os.getenv("GROQ_MODEL")
 vector_store = VectorStore(INDEX_PATH, MESSAGES_PATH, VECTOR_DIM, allow_rebuild=False)
 
 MAX_CONTEXT_CHARS = 6000  # Limit context to avoid 413 errors
+
+def needs_context(question: str) -> bool:
+    keywords = [
+        "from the channel", "recent messages", "recent opportunities",
+        "posted", "forwarded", "in the channel", "show me", "latest"
+    ]
+    q = question.lower()
+    return any(kw in q for kw in keywords)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = (
@@ -76,8 +86,11 @@ def build_limited_context(messages, max_chars):
 
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = update.message.text
-    top_msgs = vector_store.search(question, k=MAX_SEARCH_RESULTS)
-    context_str = build_limited_context(top_msgs, MAX_CONTEXT_CHARS)
+    if needs_context(question):
+        top_msgs = vector_store.search(question, k=MAX_SEARCH_RESULTS)
+        context_str = build_limited_context(top_msgs, MAX_CONTEXT_CHARS)
+    else:
+        context_str = ""
     answer = query_groq_llama(context_str, question)
     await update.message.reply_text(answer, parse_mode="Markdown")
 
